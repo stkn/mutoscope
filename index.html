@@ -75,6 +75,23 @@
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <script>
+// ctx.filter は Safari 非対応のため、ピクセル操作でモノクロ＋コントラストを適用
+function toMonochrome(img, contrast = 1.4) {
+  const cvs = document.createElement('canvas');
+  cvs.width = img.width; cvs.height = img.height;
+  const ctx = cvs.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const id = ctx.getImageData(0, 0, cvs.width, cvs.height);
+  const d = id.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    const v = Math.max(0, Math.min(255, (gray - 128) * contrast + 128));
+    d[i] = d[i + 1] = d[i + 2] = v;
+  }
+  ctx.putImageData(id, 0, 0);
+  return cvs;
+}
+
 const TOTAL  = 50;
 const HUB_R  = 0.0415;                  // hub (drum core) radius
 const CARD_W = 0.333;                   // along drum axis (X)
@@ -220,27 +237,14 @@ for (let i = 0; i < TOTAL; i++) {
 
   const num = String(i + 1).padStart(4, '0');
   loader.load(`frames/frame_${num}.jpg`, tex => {
-    // 白黒変換：Imageをcanvasに描画してgrayscaleフィルタを適用
-    const img = tex.image;
-    const cvs = document.createElement('canvas');
-    cvs.width = img.width; cvs.height = img.height;
-    const ctx = cvs.getContext('2d');
-    ctx.filter = 'grayscale(1) contrast(1.4)';
-    ctx.drawImage(img, 0, 0);
-    const bwTex = new THREE.CanvasTexture(cvs);
+    const bwTex = new THREE.CanvasTexture(toMonochrome(tex.image));
     frontMesh.material = new THREE.MeshBasicMaterial({ map: bwTex, side: THREE.FrontSide });
   });
 }
 
 // 裏面テクスチャ（back.jpg）を一度だけ読み込み、全カードに適用
 loader.load('back.jpg', tex => {
-  const img = tex.image;
-  const cvs = document.createElement('canvas');
-  cvs.width = img.width; cvs.height = img.height;
-  const ctx = cvs.getContext('2d');
-  ctx.filter = 'grayscale(1) contrast(1.4)';
-  ctx.drawImage(img, 0, 0);
-  const bwTex = new THREE.CanvasTexture(cvs);
+  const bwTex = new THREE.CanvasTexture(toMonochrome(tex.image));
   cards.forEach(({ backMesh }) => {
     backMesh.material = new THREE.MeshBasicMaterial({ map: bwTex, side: THREE.BackSide });
   });
